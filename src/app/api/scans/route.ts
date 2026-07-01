@@ -13,13 +13,18 @@ import { analyzeImagePerformance } from "../../../features/images/services/analy
 import { analyzeAccessibility } from "../../../features/accessibility/services/analyze-accessibility";
 import { analyzePerformance } from "../../../features/performance/services/analyze-performance";
 import { renderPageWithNetworkCapture } from "../../../features/performance/services/render-page-network";
-import { createScan, updateScanStatus, listScans } from "../../../server/db/scan-storage";
+import {
+  createScan,
+  updateScanStatus,
+  updateScanProgress,
+  listScans,
+} from "../../../server/db/scan-storage";
 import { createPage } from "../../../server/db/page-storage";
 import { createImages } from "../../../server/db/image-storage";
 import { createIssues, type CreateIssueInput } from "../../../server/db/issue-storage";
 import { createNetworkRequests } from "../../../server/db/network-request-storage";
 
-const SITE_MAX_PAGES = 20;
+const SITE_MAX_PAGES = Infinity;
 
 type ScanMode = "single" | "site";
 
@@ -49,14 +54,32 @@ export async function POST(request: NextRequest) {
   const scan = await createScan(url);
   await updateScanStatus(scan.id, "RUNNING", { startedAt: new Date() });
 
+  runScan(scan.id, url, mode).catch(async () => {
+    await updateScanStatus(scan.id, "FAILED", { completedAt: new Date() });
+  });
+
+  return NextResponse.json({ scanId: scan.id }, { status: 201 });
+}
+
+async function runScan(scanId: string, url: string, mode: ScanMode): Promise<void> {
   try {
-    const { pages } = await crawlWebsite(url, { maxPages: resolveMaxPages(mode) });
+    const { pages } = await crawlWebsite(url, {
+      maxPages: resolveMaxPages(mode),
+      onPageFetched: async (fetchedUrl) => {
+        await updateScanProgress(scanId, { currentUrl: fetchedUrl });
+      },
+    });
+
+    await updateScanProgress(scanId, { totalPages: pages.length, pagesProcessed: 0 });
+
     const pageMetas: PageMeta[] = [];
 
-    for (const crawledPage of pages) {
+    for (const [pageIndex, crawledPage] of pages.entries()) {
+      await updateScanProgress(scanId, { currentUrl: crawledPage.url });
+
       if (!crawledPage.html) {
         await createPage({
-          scanId: scan.id,
+          scanId,
           url: crawledPage.url,
           statusCode: crawledPage.statusCode,
           title: null,
@@ -66,6 +89,7 @@ export async function POST(request: NextRequest) {
           loadTimeMs: crawledPage.loadTimeMs,
           pageSizeBytes: null,
         });
+        await updateScanProgress(scanId, { pagesProcessed: pageIndex + 1 });
         continue;
       }
 
@@ -74,7 +98,7 @@ export async function POST(request: NextRequest) {
       const htmlSizeBytes = Buffer.byteLength(crawledPage.html, "utf8");
 
       const page = await createPage({
-        scanId: scan.id,
+        scanId,
         url: crawledPage.url,
         statusCode: crawledPage.statusCode,
         title: metadata.title,
@@ -209,6 +233,8 @@ export async function POST(request: NextRequest) {
             hasAlt: Boolean(image.alt),
           }))
       );
+
+      await updateScanProgress(scanId, { pagesProcessed: pageIndex + 1 });
     }
 
     const titleDescriptionIssues = analyzeTitlesAndDescriptions(pageMetas);
@@ -225,14 +251,8 @@ export async function POST(request: NextRequest) {
       }))
     );
 
-    await updateScanStatus(scan.id, "COMPLETED", { completedAt: new Date() });
-  } catch (error) {
-    await updateScanStatus(scan.id, "FAILED", { completedAt: new Date() });
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Scan failed" },
-      { status: 500 }
-    );
+    await updateScanStatus(scanId, "COMPLETED", { completedAt: new Date() });
+  } catch {
+    await updateScanStatus(scanId, "FAILED", { completedAt: new Date() });
   }
-
-  return NextResponse.json({ scanId: scan.id }, { status: 201 });
 }

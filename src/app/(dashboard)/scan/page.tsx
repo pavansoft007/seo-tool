@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   Card,
   CardContent,
@@ -16,6 +16,15 @@ interface ScanResponse {
   scanId?: string;
   error?: string;
 }
+
+interface ScanProgress {
+  status: string;
+  totalPages: number | null;
+  pagesProcessed: number;
+  currentUrl: string | null;
+}
+
+const POLL_INTERVAL_MS = 1500;
 
 const MODE_OPTIONS: { value: ScanMode; title: string; description: string }[] = [
   {
@@ -36,11 +45,31 @@ export default function ScanPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scanId, setScanId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ScanProgress | null>(null);
+
+  const isRunning = progress?.status === "RUNNING" || progress?.status === "PENDING";
+
+  useEffect(() => {
+    if (!scanId || !isRunning) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/scans/${scanId}/progress`);
+        const data = (await response.json()) as { scan?: ScanProgress; error?: string };
+        if (data.scan) setProgress(data.scan);
+      } catch {
+        // Keep polling; a single failed poll shouldn't stop tracking the scan.
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [scanId, isRunning]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setScanId(null);
+    setProgress(null);
     setIsSubmitting(true);
 
     try {
@@ -58,6 +87,7 @@ export default function ScanPage() {
       }
 
       setScanId(data.scanId);
+      setProgress({ status: "RUNNING", totalPages: null, pagesProcessed: 0, currentUrl: null });
     } catch {
       setError("Could not reach the scan API");
     } finally {
@@ -121,16 +151,54 @@ export default function ScanPage() {
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isRunning}
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity disabled:opacity-50"
             >
-              {isSubmitting ? "Scanning..." : "Start scan"}
+              {isSubmitting || isRunning ? "Scanning..." : "Start scan"}
             </button>
           </form>
         </CardContent>
       </Card>
 
-      {scanId && (
+      {scanId && isRunning && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardDescription>
+              {progress?.totalPages ? "Scanning" : "Discovering pages"}
+            </CardDescription>
+            <CardTitle className="text-lg">
+              {progress?.totalPages
+                ? `${progress.pagesProcessed} of ${progress.totalPages} pages completed`
+                : "Crawling site…"}
+            </CardTitle>
+          </CardHeader>
+          <div className="px-6 pb-6">
+            {progress?.totalPages ? (
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{
+                    width: `${Math.round(
+                      (progress.pagesProcessed / progress.totalPages) * 100
+                    )}%`,
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+              </div>
+            )}
+            {progress?.currentUrl && (
+              <p className="mt-2 truncate text-xs text-muted-foreground">
+                Processing: {progress.currentUrl}
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {scanId && progress?.status === "COMPLETED" && (
         <Card className="mt-6">
           <CardHeader>
             <CardDescription>Scan complete</CardDescription>
@@ -142,6 +210,15 @@ export default function ScanPage() {
           >
             View results →
           </a>
+        </Card>
+      )}
+
+      {scanId && progress?.status === "FAILED" && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardDescription>Scan failed</CardDescription>
+            <CardTitle className="text-lg">Something went wrong while scanning</CardTitle>
+          </CardHeader>
         </Card>
       )}
     </div>

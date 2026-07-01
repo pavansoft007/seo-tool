@@ -11,6 +11,7 @@ export interface CrawledPage {
 
 export interface CrawlWebsiteOptions {
   maxPages: number;
+  onPageFetched?: (url: string) => void | Promise<void>;
 }
 
 export interface CrawlWebsiteResult {
@@ -56,6 +57,7 @@ export async function crawlWebsite(
     }
 
     pages.push({ url, statusCode, html, loadTimeMs });
+    await options.onPageFetched?.(url);
 
     if (!html) continue;
 

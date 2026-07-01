@@ -8,13 +8,16 @@ datasource db {
 }
 
 model Scan {
-  id          String    @id @default(cuid())
-  url         String
-  status      String    @default("PENDING")
-  startedAt   DateTime?
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  url            String
+  status         String    @default("PENDING")
+  totalPages     Int?
+  pagesProcessed Int       @default(0)
+  currentUrl     String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   pages Page[]
 

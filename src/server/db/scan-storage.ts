@@ -17,6 +17,28 @@ export function updateScanStatus(
   });
 }
 
+export function updateScanProgress(
+  scanId: string,
+  progress: { totalPages?: number; pagesProcessed?: number; currentUrl?: string | null }
+): Promise<Scan> {
+  return prisma.scan.update({
+    where: { id: scanId },
+    data: progress,
+  });
+}
+
+export function getScanProgress(scanId: string) {
+  return prisma.scan.findUnique({
+    where: { id: scanId },
+    select: {
+      status: true,
+      totalPages: true,
+      pagesProcessed: true,
+      currentUrl: true,
+    },
+  });
+}
+
 export function getScanWithRelations(scanId: string) {
   return prisma.scan.findUnique({
     where: { id: scanId },
