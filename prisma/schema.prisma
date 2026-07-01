@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Scan {
+  id          String    @id @default(cuid())
+  url         String
+  status      String    @default("PENDING")
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  pages Page[]
+
+  @@index([url])
+  @@index([status])
+}
+
+model Page {
+  id                String   @id @default(cuid())
+  scanId            String
+  url               String
+  statusCode        Int?
+  title             String?
+  metaDescription   String?
+  canonicalUrl      String?
+  h1                String?
+  wordCount         Int?
+  isIndexable       Boolean  @default(true)
+  loadTimeMs        Int?
+  pageSizeBytes     Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  scan            Scan             @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  issues          Issue[]
+  links           Link[]
+  images          Image[]
+  networkRequests NetworkRequest[]
+
+  @@index([scanId])
+  @@index([url])
+}
+
+model Issue {
+  id        String   @id @default(cuid())
+  pageId    String
+  category  String
+  severity  String   @default("INFO")
+  code      String
+  message   String
+  createdAt DateTime @default(now())
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+  @@index([category])
+  @@index([severity])
+}
+
+model Link {
+  id          String   @id @default(cuid())
+  pageId      String
+  targetUrl   String
+  anchorText  String?
+  isInternal  Boolean  @default(true)
+  isBroken    Boolean  @default(false)
+  statusCode  Int?
+  createdAt   DateTime @default(now())
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+  @@index([targetUrl])
+  @@index([isBroken])
+}
+
+model Image {
+  id        String   @id @default(cuid())
+  pageId    String
+  src       String
+  alt       String?
+  hasAlt    Boolean  @default(false)
+  sizeKb    Int?
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+}
+
+model NetworkRequest {
+  id           String   @id @default(cuid())
+  pageId       String
+  url          String
+  resourceType String
+  method       String
+  statusCode   Int?
+  sizeBytes    Int?
+  timingMs     Int?
+  createdAt    DateTime @default(now())
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+  @@index([resourceType])
+}
