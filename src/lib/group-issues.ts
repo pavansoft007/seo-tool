@@ -6,6 +6,11 @@ export interface GroupableIssue {
   pageUrl?: string;
 }
 
+export interface IssueOccurrence {
+  message: string;
+  pageUrl?: string;
+}
+
 export interface IssueGroup {
   category: string;
   code: string;
@@ -13,6 +18,7 @@ export interface IssueGroup {
   message: string;
   count: number;
   samplePageUrls: string[];
+  occurrences: IssueOccurrence[];
 }
 
 const MAX_SAMPLE_PAGES = 3;
@@ -23,9 +29,11 @@ export function groupIssues<T extends GroupableIssue>(issues: T[]): IssueGroup[]
   for (const issue of issues) {
     const key = `${issue.category}::${issue.code}`;
     const existing = groups.get(key);
+    const occurrence: IssueOccurrence = { message: issue.message, pageUrl: issue.pageUrl };
 
     if (existing) {
       existing.count += 1;
+      existing.occurrences.push(occurrence);
       if (
         issue.pageUrl &&
         !existing.samplePageUrls.includes(issue.pageUrl) &&
@@ -43,6 +51,7 @@ export function groupIssues<T extends GroupableIssue>(issues: T[]): IssueGroup[]
       message: issue.message,
       count: 1,
       samplePageUrls: issue.pageUrl ? [issue.pageUrl] : [],
+      occurrences: [occurrence],
     });
   }
 

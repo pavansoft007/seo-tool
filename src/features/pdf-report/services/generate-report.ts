@@ -41,9 +41,10 @@ export function generateReport(input: GenerateReportInput): ReportJson {
 
   const issuesSection = issues.filter((issue) => issue.severity === "CRITICAL");
   const warningsSection = issues.filter((issue) => issue.severity === "WARNING");
+  const infoSection = issues.filter((issue) => issue.severity === "INFO");
 
   const categoriesWithFindings = new Set(
-    [...issuesSection, ...warningsSection].map((issue) => issue.category)
+    [...issuesSection, ...warningsSection, ...infoSection].map((issue) => issue.category)
   );
 
   const passed = checkedCategories.filter(
@@ -52,7 +53,7 @@ export function generateReport(input: GenerateReportInput): ReportJson {
 
   const recommendations = Array.from(
     new Map(
-      [...issuesSection, ...warningsSection]
+      [...issuesSection, ...warningsSection, ...infoSection]
         .sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
         .map((issue) => [issue.code, issue.message])
     ).values()

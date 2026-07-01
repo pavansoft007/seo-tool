@@ -325,11 +325,26 @@ export default async function ScanResultsPage({
                           <Badge variant="neutral">×{group.count}</Badge>
                         )}
                       </div>
-                      {group.samplePageUrls.length > 0 && (
-                        <span className="pl-1 text-xs text-muted-foreground">
-                          Page: {group.samplePageUrls.join(", ")}
-                          {group.count > group.samplePageUrls.length && " …"}
-                        </span>
+                      {group.count > 1 ? (
+                        <details className="pl-1 text-xs text-muted-foreground">
+                          <summary className="cursor-pointer select-none">
+                            Show all {group.count} occurrences
+                          </summary>
+                          <ul className="mt-1 flex flex-col gap-1">
+                            {group.occurrences.map((occurrence, index) => (
+                              <li key={index}>
+                                {occurrence.message}
+                                {occurrence.pageUrl && ` — Page: ${occurrence.pageUrl}`}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      ) : (
+                        group.samplePageUrls.length > 0 && (
+                          <span className="pl-1 text-xs text-muted-foreground">
+                            Page: {group.samplePageUrls.join(", ")}
+                          </span>
+                        )
                       )}
                     </li>
                   ))}

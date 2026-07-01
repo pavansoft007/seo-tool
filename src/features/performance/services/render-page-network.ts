@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { chromium, type Request } from "playwright";
 
 export interface NetworkRequestInfo {
   url: string;
@@ -27,6 +27,7 @@ export async function renderPageWithNetworkCapture(
 ): Promise<RenderPageResult> {
   const browser = await chromium.launch();
   const networkRequests: NetworkRequestInfo[] = [];
+  const pendingRequests: { request: Request; entry: NetworkRequestInfo }[] = [];
 
   try {
     const context = await browser.newContext();
@@ -34,25 +35,30 @@ export async function renderPageWithNetworkCapture(
 
     page.on("response", (response) => {
       const request = response.request();
-      const timing = request.timing();
-      const timingMs =
-        timing.responseEnd >= 0 ? Math.round(timing.responseEnd - timing.startTime) : null;
       const contentLength = response.headers()["content-length"];
 
-      networkRequests.push({
+      const entry: NetworkRequestInfo = {
         url: request.url(),
         resourceType: request.resourceType(),
         method: request.method(),
         statusCode: response.status(),
         sizeBytes: contentLength ? Number(contentLength) : null,
-        timingMs,
-      });
+        timingMs: null,
+      };
+
+      networkRequests.push(entry);
+      pendingRequests.push({ request, entry });
     });
 
     await page.goto(url, {
       waitUntil: "networkidle",
       timeout: NAVIGATION_TIMEOUT_MS,
     });
+
+    for (const { request, entry } of pendingRequests) {
+      const timing = request.timing();
+      entry.timingMs = timing.responseEnd >= 0 ? Math.round(timing.responseEnd) : null;
+    }
 
     const renderedImageSrcs = await page.$$eval("img", (elements) =>
       Array.from(new Set(elements.map((element) => element.src).filter(Boolean)))

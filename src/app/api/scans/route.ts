@@ -187,7 +187,14 @@ export async function POST(request: NextRequest) {
           });
         }
       } catch {
-        // Network capture is best-effort; a browser failure shouldn't fail the whole scan.
+        pageIssues.push({
+          pageId: page.id,
+          category: "TECHNICAL",
+          severity: "WARNING",
+          code: "PAGE_RENDER_CHECK_FAILED",
+          message:
+            "The browser-based check for this page failed to load, so JavaScript-injected content (like dynamically loaded images) could not be verified. Re-run the scan or check the page manually.",
+        });
       }
 
       await createIssues(pageIssues);
