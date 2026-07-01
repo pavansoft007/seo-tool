@@ -29,6 +29,8 @@ const IMAGE_PERFORMANCE_CODES: ImagePerformanceIssueCode[] = [
   "IMAGE_TOO_LARGE",
 ];
 const API_RESOURCE_TYPES = new Set(["fetch", "xhr"]);
+const MAX_TABLE_ROWS = 200;
+const MAX_OCCURRENCES_SHOWN = 200;
 
 function getSpeedBadge(loadTimeMs: number | null): { label: string; variant: BadgeVariant } {
   if (loadTimeMs === null) return { label: "—", variant: "neutral" };
@@ -180,6 +182,8 @@ export default async function ScanResultsPage({
           <p className="mb-2 text-xs text-muted-foreground">
             fetch/XHR requests the page made — separate from static assets like images and
             scripts.
+            {apiCalls.length > MAX_TABLE_ROWS &&
+              ` Showing the first ${MAX_TABLE_ROWS} of ${apiCalls.length} requests.`}
           </p>
           <Card className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -192,7 +196,7 @@ export default async function ScanResultsPage({
                 </tr>
               </thead>
               <tbody>
-                {apiCalls.map((request) => (
+                {apiCalls.slice(0, MAX_TABLE_ROWS).map((request) => (
                   <tr key={request.id} className="border-b border-border last:border-0">
                     <td className="max-w-xs truncate px-4 py-3" title={request.url}>
                       {request.url}
@@ -222,6 +226,8 @@ export default async function ScanResultsPage({
           <p className="mb-2 text-xs text-muted-foreground">
             Every request the browser made while rendering the page — like the DevTools
             Network tab.
+            {networkRequests.length > MAX_TABLE_ROWS &&
+              ` Showing the first ${MAX_TABLE_ROWS} of ${networkRequests.length} requests.`}
           </p>
           <Card className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -236,7 +242,7 @@ export default async function ScanResultsPage({
                 </tr>
               </thead>
               <tbody>
-                {networkRequests.map((request) => (
+                {networkRequests.slice(0, MAX_TABLE_ROWS).map((request) => (
                   <tr key={request.id} className="border-b border-border last:border-0">
                     <td className="max-w-xs truncate px-4 py-3" title={request.url}>
                       {request.url}
@@ -331,13 +337,18 @@ export default async function ScanResultsPage({
                             Show all {group.count} occurrences
                           </summary>
                           <ul className="mt-1 flex flex-col gap-1">
-                            {group.occurrences.map((occurrence, index) => (
+                            {group.occurrences.slice(0, MAX_OCCURRENCES_SHOWN).map((occurrence, index) => (
                               <li key={index}>
                                 {occurrence.message}
                                 {occurrence.pageUrl && ` — Page: ${occurrence.pageUrl}`}
                               </li>
                             ))}
                           </ul>
+                          {group.count > MAX_OCCURRENCES_SHOWN && (
+                            <p className="mt-1">
+                              Showing the first {MAX_OCCURRENCES_SHOWN} of {group.count}.
+                            </p>
+                          )}
                         </details>
                       ) : (
                         group.samplePageUrls.length > 0 && (
